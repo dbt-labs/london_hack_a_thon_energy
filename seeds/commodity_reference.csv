@@ -1,0 +1,24 @@
+commodity_code,commodity_name,commodity_group,price_unit,is_energy_complex
+natural_gas,Henry Hub natural gas,Energy,USD per MMBtu,true
+wti_crude,WTI crude,Energy,USD per barrel,true
+brent_crude,Brent crude,Energy,USD per barrel,true
+low_sulphur_gas_oil,Low sulphur gas oil,Energy,USD per tonne,true
+uls_diesel,ULS diesel,Energy,USD cents per gallon,true
+gasoline,RBOB gasoline,Energy,USD cents per gallon,true
+gold,Gold,Metals,USD per troy ounce,false
+silver,Silver,Metals,USD per troy ounce,false
+copper,Copper,Metals,USD per pound,false
+aluminium,Aluminium,Metals,USD per tonne,false
+nickel,Nickel,Metals,USD per tonne,false
+zinc,Zinc,Metals,USD per tonne,false
+corn,Corn,Grains and softs,USD cents per bushel,false
+wheat,Chicago wheat,Grains and softs,USD cents per bushel,false
+hrw_wheat,Hard red winter wheat,Grains and softs,USD cents per bushel,false
+soybeans,Soybeans,Grains and softs,USD cents per bushel,false
+soybean_oil,Soybean oil,Grains and softs,USD cents per pound,false
+soybean_meal,Soybean meal,Grains and softs,USD per short ton,false
+sugar,Sugar no. 11,Grains and softs,USD cents per pound,false
+coffee,Arabica coffee,Grains and softs,USD cents per pound,false
+cotton,Cotton no. 2,Grains and softs,USD cents per pound,false
+live_cattle,Live cattle,Livestock,USD cents per pound,false
+lean_hogs,Lean hogs,Livestock,USD cents per pound,false

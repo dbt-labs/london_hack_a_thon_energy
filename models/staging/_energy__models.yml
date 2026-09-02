@@ -1,0 +1,255 @@
+version: 2
+
+models:
+
+  # ===========================================================================
+  - name: stg_commodity_prices
+    description: >
+      Typed view over the wide commodity price feed, still one column per
+      commodity. Drops the single all-null row at the head of the series.
+    columns:
+
+      - name: price_row_id
+        description: Row identifier from the source, ascending with date.
+        data_tests:
+          - not_null
+
+      - name: price_date
+        description: Trade date.
+        data_tests:
+          - unique
+          - not_null
+
+      - name: brent_crude
+        description: >
+          Brent crude, USD per barrel. Used as the "did this row carry any
+          prices" probe, so it is never null after staging.
+        data_tests:
+          - not_null
+
+      - name: wti_crude
+        description: >
+          WTI crude, USD per barrel. Goes negative on 2020-04-20. No positivity
+          test here on purpose: the negative print is real.
+        data_tests:
+          - not_null
+
+      - name: natural_gas
+        description: Henry Hub natural gas, USD per MMBtu.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: false
+
+      - name: gold
+        description: Gold, USD per troy ounce.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: false
+
+      - name: gasoline
+        description: >
+          RBOB gasoline, USD cents per gallon. Sparse: the series starts later
+          than the others, so roughly 1,480 rows are null. No not_null test,
+          because that would be testing for something the source cannot give us.
+
+  # ===========================================================================
+  - name: stg_fts_records
+    description: >
+      Typed, renamed view over the field technician system maintenance log. The
+      system of record for maintenance events.
+    columns:
+
+      - name: source_system
+        description: Literal 'FTS'. Survives the union downstream as lineage.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['FTS']
+
+      - name: maintenance_log_id
+        description: Primary key, a UUID.
+        data_tests:
+          - unique
+          - not_null
+
+      - name: equipment_id
+        description: Asset the event relates to.
+        data_tests:
+          - not_null
+
+      - name: technician_id
+        description: Technician who performed the work.
+        data_tests:
+          - not_null
+
+      - name: log_date
+        description: Date of the maintenance event, cast from the raw VARCHAR.
+        data_tests:
+          - not_null
+
+      - name: maintenance_type
+        description: The maintenance strategy applied.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - 'Preventive Maintenance'
+                  - 'Predictive Maintenance'
+                  - 'Corrective Maintenance'
+                  - 'Condition-Based Maintenance'
+                  - 'Reliability-Centered Maintenance'
+
+      - name: maintenance_status
+        description: Lifecycle state of the maintenance event.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Completed', 'In Progress', 'Scheduled', 'Delayed', 'Cancelled']
+
+      - name: failure_rate
+        description: Observed failure rate for the asset, 0 to 1.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+                inclusive: true
+
+      - name: maintenance_cost
+        description: Cost of the maintenance event in USD.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: false
+
+      - name: downtime_hours
+        description: Hours the asset was unavailable.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: true
+
+      - name: summarization_hours_saved
+        description: Analyst hours saved by the AI summary of the log.
+
+      - name: summarized_log
+        description: AI-generated summary of the technician's note.
+
+  # ===========================================================================
+  - name: stg_loglynx
+    description: >
+      Typed, renamed view over the LogLynx maintenance log. Identical in shape
+      to stg_fts_records, and in this data set identical in content too: all 750
+      events appear in both feeds. See the source description and
+      int_energy_maintenance_logs_unioned for what that means.
+    columns:
+
+      - name: source_system
+        description: Literal 'LOGLYNX'. Survives the union downstream as lineage.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['LOGLYNX']
+
+      - name: maintenance_log_id
+        description: >
+          Primary key, a UUID. Unique within this feed, but overlaps 100% with
+          stg_fts_records. Unique here is a real test; unique after the union
+          would fail, which is the whole point.
+        data_tests:
+          - unique
+          - not_null
+
+      - name: equipment_id
+        description: Asset the event relates to.
+        data_tests:
+          - not_null
+
+      - name: log_date
+        description: Date of the maintenance event, cast from the raw VARCHAR.
+        data_tests:
+          - not_null
+
+      - name: maintenance_type
+        description: The maintenance strategy applied.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - 'Preventive Maintenance'
+                  - 'Predictive Maintenance'
+                  - 'Corrective Maintenance'
+                  - 'Condition-Based Maintenance'
+                  - 'Reliability-Centered Maintenance'
+
+      - name: maintenance_status
+        description: Lifecycle state of the maintenance event.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Completed', 'In Progress', 'Scheduled', 'Delayed', 'Cancelled']
+
+      - name: failure_rate
+        description: Observed failure rate for the asset, 0 to 1.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 1
+                inclusive: true
+
+      - name: maintenance_cost
+        description: Cost of the maintenance event in USD.
+        data_tests:
+          - not_null
+
+
+seeds:
+  - name: commodity_reference
+    description: >
+      Lookup for the 23 commodities in the price feed: human-readable name,
+      asset-class group and the unit the price is quoted in. Kept as a seed so a
+      trader can add a commodity by editing a CSV rather than editing SQL.
+    columns:
+      - name: commodity_code
+        description: Machine-readable code, matching the raw column name.
+        data_tests:
+          - unique
+          - not_null
+      - name: commodity_name
+        description: Human-readable commodity name.
+        data_tests:
+          - not_null
+      - name: commodity_group
+        description: Energy, Metals, Grains and softs, or Livestock.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Energy', 'Metals', 'Grains and softs', 'Livestock']
+      - name: price_unit
+        description: The unit the price is quoted in.
+        data_tests:
+          - not_null
+      - name: is_energy_complex
+        description: True for the six energy commodities.
+        data_tests:
+          - not_null

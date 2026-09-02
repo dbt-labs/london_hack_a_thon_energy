@@ -1,0 +1,44 @@
+version: 2
+
+seeds:
+  - name: commodity_prices
+    description: >
+      Daily settlement prices for 23 traded commodities, one column per
+      commodity. 5,898 rows covering 2000-01-03 to 2022-11-04.
+
+      Grain: one row per date. This is a wide time series, which is fine for
+      a spreadsheet and awkward for analytics, so the intermediate layer
+      unpivots it into one row per date and commodity.
+
+      Two real properties of this feed to know about. The row for
+      2000-01-03 is entirely null except for the key, and `gasoline` only
+      starts partway through the series, so it has about 1,480 fewer
+      observations than the rest. `wti_crude` goes negative on 2020-04-20;
+      that is not a data error, it is what the market did.
+
+  - name: fts_records
+    description: >
+      Field-service maintenance logs from the field technician system. One
+      row per maintenance event, with downtime, failure rate, cost and an
+      AI-generated summary of the technician's free-text log. 750 rows,
+      one per `record_id`. This is the system of record for maintenance.
+      See `loglynx` below for why that matters.
+
+  - name: loglynx
+    description: >
+      A second maintenance-log feed, from the LogLynx platform. Identical
+      column-for-column to `fts_records`, and in this data set a byte-for-
+      byte mirror of the same 750 events: every `record_id` in `fts_records`
+      appears here too, with no row differing on any column. Two systems
+      reporting the same physical maintenance work.
+
+      If you union the two feeds and stop there, every energy metric
+      doubles and nothing warns you. `int_energy_maintenance_logs_unioned`
+      unions and then de-duplicates on `record_id`, keeping the field
+      technician system as the system of record. Real dual-source estates
+      behave exactly like this after a platform migration that was never
+      finished.
+
+  # `commodity_reference` is already documented under the `seeds:` block in
+  # _energy__models.yml, alongside its pinned +column_types. Not repeated
+  # here — dbt errors on duplicate resource definitions for the same seed.

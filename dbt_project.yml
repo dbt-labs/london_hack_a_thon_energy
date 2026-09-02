@@ -1,0 +1,62 @@
+# ---------------------------------------------------------------------------
+# Energy track
+#
+# This is the ONLY file you need to edit to point the project at your own data.
+# Everything else in this project reads from the vars below.
+# ---------------------------------------------------------------------------
+
+name: 'hol_energy'
+version: '1.0.0'
+profile: 'snowflake_hol'
+
+# Fusion-conformant: no config-version key, and a minimum version floor.
+require-dbt-version: [">=1.9.0"]
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+# dbt seed's default Snowflake load is unquoted (Snowflake-uppercased) names,
+# which is what quoting: false already matches. No per-attendee variation to
+# account for here, since every attendee seeds the same way.
+quoting:
+  database: false
+  schema: false
+  identifier: false
+
+vars:
+  # ---- TRACK IDENTITY (one obvious place per project) ---------------------
+  track_key: 'energy'
+  track_name: 'Energy'
+  track_description: >
+    Commodity price history and field-service reliability for an energy
+    operator: daily prices across 23 traded commodities, and the downtime,
+    failure rate and maintenance cost of the equipment fleet.
+
+models:
+  hol_energy:
+    +materialized: view
+    staging:
+      +tags: ['staging']
+    intermediate:
+      +tags: ['intermediate']
+    marts:
+      +materialized: table
+      +tags: ['marts']
+
+seeds:
+  hol_energy:
+    commodity_reference:
+      # Types are pinned rather than inferred. Downstream marts have enforced
+      # contracts, and a seed column that silently loads as VARCHAR instead of
+      # BOOLEAN would break them.
+      +column_types:
+        commodity_code: varchar
+        commodity_name: varchar
+        commodity_group: varchar
+        price_unit: varchar
+        is_energy_complex: boolean

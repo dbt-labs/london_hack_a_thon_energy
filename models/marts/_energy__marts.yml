@@ -1,0 +1,557 @@
+version: 2
+
+models:
+
+  # ===========================================================================
+  # energy_commodity_price_history
+  #
+  # ENFORCED CONTRACT. dbt builds an empty table from the column list below,
+  # compares it against what the model actually produces, and refuses to build
+  # if they differ.
+  # ===========================================================================
+  - name: energy_commodity_price_history
+    description: >
+      Commodity price fact for the energy track. One row per trade date and commodity, with day-on-day movement and a 30-day rolling average already computed. Covers 2000-01-04 to 2022-11-04.
+    config:
+      contract:
+        enforced: true
+    columns:
+
+      - name: price_date
+        data_type: date
+        description: Trade date.
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+
+      # HOL_BUG_ENERGY_04
+        dimension:
+          type: time
+        granularity: day
+      - name: commodity
+        data_type: varchar
+        description: Machine-readable commodity code, for example brent_crude.
+
+      - name: commodity_name
+        data_type: varchar
+        description: Human-readable commodity name, for example Brent crude.
+        data_tests:
+          - not_null
+
+        dimension:
+          type: categorical
+      - name: commodity_group
+        data_type: varchar
+        description: Energy, Metals, Grains and softs, or Livestock.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Energy', 'Metals', 'Grains and softs', 'Livestock']
+
+        dimension:
+          type: categorical
+      - name: price_unit
+        data_type: varchar
+        description: The unit the price is quoted in.
+
+        dimension:
+          type: categorical
+      - name: is_energy_complex
+        data_type: boolean
+        description: True for the six energy commodities.
+
+      - name: price_usd
+        data_type: number(18,4)
+        description: >
+          Settlement price on the day. No positivity test: WTI settled below
+          zero on 2020-04-20 and that is a real market event, not bad data.
+        data_tests:
+          - not_null
+
+      - name: previous_price_usd
+        data_type: number(18,4)
+        description: >
+          Settlement price on the previous day this commodity traded. Null on
+          the first observation of each commodity, which is correct.
+
+      - name: price_change_usd
+        data_type: number(18,4)
+        description: Day-on-day move in the settlement price.
+
+      - name: price_change_pct
+        data_type: number(18,6)
+        description: Day-on-day move as a share of the previous price.
+
+      - name: rolling_30d_avg_price
+        data_type: number(18,4)
+        description: Average settlement price over the trailing 30 trading days.
+
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - price_date
+              - commodity_code
+    semantic_model:
+      enabled: true
+      name: energy_commodity_price_history
+    agg_time_dimension: price_date
+    derived_semantics:
+      entities:
+        - name: commodity_price_point
+          type: primary
+          expr: commodity_code || '|' || cast(price_date as varchar)
+    metrics:
+      - name: average_commodity_price
+        label: Average commodity price
+        description: >
+          Average settlement price over the selected period. Always read this with
+          the commodity dimension attached: averaging gold and sugar together is
+          arithmetically valid and commercially meaningless.
+        type: simple
+        agg: average
+        expr: price_usd
+      - name: highest_commodity_price
+        label: Highest commodity price
+        description: Highest settlement price over the selected period.
+        type: simple
+        agg: max
+        expr: price_usd
+      - name: lowest_commodity_price
+        label: Lowest commodity price
+        description: Lowest settlement price over the selected period.
+        type: simple
+        agg: min
+        expr: price_usd
+      - name: average_daily_price_change_pct
+        label: Average daily price change
+        description: Average day-on-day move as a share of the previous price.
+        type: simple
+        agg: average
+        expr: price_change_pct
+      - name: largest_daily_gain_pct
+        label: Largest daily gain
+        description: Largest single-day percentage gain over the period.
+        type: simple
+        agg: max
+        expr: price_change_pct
+      - name: largest_daily_loss_pct
+        label: Largest daily loss
+        description: Largest single-day percentage loss over the period.
+        type: simple
+        agg: min
+        expr: price_change_pct
+      - name: trading_day_count
+        label: Trading day count
+        description: Number of trading-day observations in the selection.
+        type: simple
+        agg: count
+        expr: price_date
+
+  # ===========================================================================
+  # energy_maintenance_logs
+  # ===========================================================================
+  - name: energy_maintenance_logs
+    description: >
+      Maintenance fact for the energy track. One row per maintenance event, after the field technician and LogLynx feeds have been combined and de-duplicated. Contract enforced.
+    config:
+      contract:
+        enforced: true
+    columns:
+
+      - name: maintenance_log_id
+        data_type: varchar
+        description: Primary key. One row per maintenance event.
+        constraints:
+          - type: not_null
+        data_tests:
+          - unique
+          - not_null
+
+        entity:
+          type: primary
+          name: maintenance_event
+      - name: equipment_id
+        data_type: varchar
+        description: Asset the work was done on.
+        data_tests:
+          - not_null
+
+        entity:
+          type: foreign
+          name: equipment
+      - name: technician_id
+        data_type: varchar
+        description: Technician who performed the work.
+
+        entity:
+          type: foreign
+          name: technician
+      - name: customer_id
+        data_type: varchar
+        description: Customer the asset belongs to.
+
+        entity:
+          type: foreign
+          name: customer
+      - name: erp_order_id
+        data_type: varchar
+        description: Work order in the ERP system.
+
+      - name: log_date
+        data_type: date
+        description: Date of the maintenance event.
+        constraints:
+          - type: not_null
+        data_tests:
+          - not_null
+
+        dimension:
+          type: time
+        granularity: day
+      - name: maintenance_type
+        data_type: varchar
+        description: The maintenance strategy applied.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - 'Preventive Maintenance'
+                  - 'Predictive Maintenance'
+                  - 'Corrective Maintenance'
+                  - 'Condition-Based Maintenance'
+                  - 'Reliability-Centered Maintenance'
+
+        dimension:
+          type: categorical
+      - name: maintenance_status
+        data_type: varchar
+        description: Lifecycle state of the maintenance event.
+        # HOL_BUG_ENERGY_03
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Completed', 'In Progress', 'Scheduled', 'Delayed']
+
+        dimension:
+          type: categorical
+      - name: downtime_band
+        data_type: varchar
+        description: Major, Moderate or Minor, based on hours of downtime.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Major', 'Moderate', 'Minor']
+
+        dimension:
+          type: categorical
+      - name: work_class
+        data_type: varchar
+        description: Planned or Unplanned. Corrective work is unplanned.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Planned', 'Unplanned']
+
+        dimension:
+          type: categorical
+      - name: source_system
+        data_type: varchar
+        description: >
+          Which feed the surviving record came from. Every row should say FTS,
+          because the field technician system wins every de-duplication in this
+          data set. If LOGLYNX ever appears here, LogLynx saw an event FTS did
+          not, which is worth knowing.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['FTS', 'LOGLYNX']
+
+        dimension:
+          type: categorical
+      - name: failure_rate
+        data_type: number(9,4)
+        description: Observed failure rate for the asset, 0 to 1.
+
+      - name: maintenance_cost
+        data_type: number(18,2)
+        description: Cost of the maintenance event in USD.
+        data_tests:
+          - not_null
+
+      - name: downtime_hours
+        data_type: number(38,0)
+        description: Hours the asset was unavailable.
+
+      - name: cost_per_downtime_hour
+        data_type: number(18,2)
+        description: Maintenance cost divided by hours of downtime.
+
+      - name: summarization_hours_saved
+        data_type: number(38,0)
+        description: Analyst hours saved by the AI summary of the log.
+
+      - name: is_completed
+        data_type: boolean
+        description: True when the maintenance event is complete.
+
+      - name: is_at_risk
+        data_type: boolean
+        description: True when the event is delayed or cancelled.
+
+      - name: is_reported_by_both_feeds
+        data_type: boolean
+        description: >
+          True when both source systems reported this event. In this data set
+          that is every row, which is the finding the track is built around.
+
+      - name: summarized_log
+        data_type: varchar
+        description: AI-generated summary of the technician's note.
+    semantic_model:
+      enabled: true
+      name: energy_maintenance_logs
+    agg_time_dimension: log_date
+    metrics:
+      - name: total_maintenance_cost
+        label: Total maintenance cost
+        description: Total maintenance spend in USD, on de-duplicated events.
+        type: simple
+        agg: sum
+        expr: maintenance_cost
+      - name: average_maintenance_cost
+        label: Average maintenance cost
+        description: Average cost of a maintenance event in USD.
+        type: simple
+        agg: average
+        expr: maintenance_cost
+      - name: total_downtime_hours
+        label: Total downtime hours
+        description: Total hours of equipment downtime.
+        type: simple
+        agg: sum
+        expr: downtime_hours
+      - name: average_downtime_hours
+        label: Average downtime hours
+        description: >
+          Average hours of downtime per maintenance event. The closest thing this
+          data set has to a mean-time-to-repair figure.
+        type: simple
+        agg: average
+        expr: downtime_hours
+      - name: average_failure_rate
+        label: Average failure rate
+        description: Average observed failure rate, 0 to 1. Lower is better.
+        type: simple
+        agg: average
+        expr: failure_rate
+      - name: maintenance_event_count
+        label: Maintenance event count
+        description: Number of maintenance events.
+        type: simple
+        agg: count
+        expr: maintenance_log_id
+      - name: completed_event_count
+        label: Completed event count
+        description: Maintenance events marked Completed.
+        type: simple
+        agg: sum
+        expr: case when is_completed then 1 else 0 end
+      - name: at_risk_event_count
+        label: At-risk event count
+        description: Maintenance events delayed or cancelled.
+        type: simple
+        agg: sum
+        expr: case when is_at_risk then 1 else 0 end
+      - name: unplanned_event_count
+        label: Unplanned event count
+        description: Corrective maintenance events.
+        type: simple
+        agg: sum
+        expr: case when work_class = 'Unplanned' then 1 else 0 end
+      - name: total_analyst_hours_saved
+        label: Total analyst hours saved
+        description: Analyst hours saved by AI summarisation of technician logs.
+        type: simple
+        agg: sum
+        expr: summarization_hours_saved
+      - name: maintenance_completion_rate
+        label: Maintenance completion rate
+        description: Share of maintenance events marked Completed, 0 to 1.
+        type: ratio
+        numerator: completed_event_count
+        denominator: maintenance_event_count
+      - name: at_risk_rate
+        label: At-risk rate
+        description: Share of maintenance events delayed or cancelled, 0 to 1.
+        type: ratio
+        numerator: at_risk_event_count
+        denominator: maintenance_event_count
+      - name: unplanned_work_rate
+        label: Unplanned work rate
+        description: >
+          Share of maintenance events that were corrective, 0 to 1. The headline
+          reliability KPI: the lower it goes, the more the fleet is being maintained
+          on purpose rather than in response to failure.
+        type: ratio
+        numerator: unplanned_event_count
+        denominator: maintenance_event_count
+      - name: cost_per_downtime_hour
+        label: Cost per downtime hour
+        description: >
+          Total maintenance cost divided by total downtime hours. Derived rather
+          than averaged, so it stays correct at every level of aggregation.
+        type: derived
+        expr: total_maintenance_cost / nullif(total_downtime_hours, 0)
+        input_metrics:
+          - name: total_maintenance_cost
+          - name: total_downtime_hours
+
+
+  # ===========================================================================
+  # energy_maintenance_cost_by_type
+  # ===========================================================================
+  - name: energy_maintenance_cost_by_type
+    description: >
+      Maintenance economics rolled up to the strategy level. One row per
+      maintenance type. Contract enforced.
+    config:
+      contract:
+        enforced: true
+    columns:
+
+      - name: maintenance_type
+        data_type: varchar
+        description: The maintenance strategy.
+        constraints:
+          - type: not_null
+        data_tests:
+          - unique
+          - not_null
+
+      - name: event_count
+        data_type: number(38,0)
+        description: Number of maintenance events under this strategy.
+
+      - name: equipment_count
+        data_type: number(38,0)
+        description: Distinct assets touched by this strategy.
+
+      - name: technician_count
+        data_type: number(38,0)
+        description: Distinct technicians who performed this work.
+
+      - name: total_maintenance_cost
+        data_type: number(18,2)
+        description: Total spend under this strategy in USD.
+
+      - name: average_maintenance_cost
+        data_type: number(18,2)
+        description: Average cost per event in USD.
+
+      - name: total_downtime_hours
+        data_type: number(38,0)
+        description: Total hours of downtime under this strategy.
+
+      - name: average_downtime_hours
+        data_type: number(18,4)
+        description: Average hours of downtime per event.
+
+      - name: average_failure_rate
+        data_type: number(9,4)
+        description: Average observed failure rate, 0 to 1.
+
+      - name: cost_per_downtime_hour
+        data_type: number(18,2)
+        description: Total cost divided by total downtime hours.
+
+      - name: completed_event_count
+        data_type: number(38,0)
+        description: Events marked Completed.
+
+      - name: at_risk_event_count
+        data_type: number(38,0)
+        description: Events delayed or cancelled.
+
+      - name: completion_rate
+        data_type: number(9,6)
+        description: Share of events marked Completed, 0 to 1.
+
+      - name: total_summarization_hours_saved
+        data_type: number(38,0)
+        description: Analyst hours saved by AI summarisation under this strategy.
+
+  # ===========================================================================
+  # vw_energy_data_quality
+  #
+  # No contract here on purpose. This is the model the lab edits live during
+  # the dbt Studio and Fusion tour.
+  # ===========================================================================
+  - name: vw_energy_data_quality
+    description: >
+      Data-quality scorecard, one row per data domain. Scores completeness,
+      validity and consistency out of 100 and grades the domain A to D. The
+      maintenance domain scores badly, and the reason is the duplicated feed.
+    columns:
+
+      - name: data_domain
+        description: Commodity prices or Maintenance logs.
+        data_tests:
+          - unique
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Commodity prices', 'Maintenance logs']
+
+      - name: total_rows
+        description: Rows examined in the domain.
+
+      - name: completeness_score
+        description: Are the fields we need populated? 0 to 100.
+
+      - name: validity_score
+        description: Are values inside the range the business expects? 0 to 100.
+
+      - name: consistency_score
+        description: Do fields that should agree with each other agree? 0 to 100.
+
+      - name: data_quality_score
+        description: Simple average of the three dimension scores.
+
+      - name: data_quality_grade
+        description: A, B, C or D, derived from data_quality_score.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['A', 'B', 'C', 'D']
+
+  # ===========================================================================
+  # Semantic views
+  # ===========================================================================
+  - name: sv_energy_commodity_prices
+    description: >
+      Snowflake Semantic View over the commodity price fact. Read by Cortex
+      Analyst and Snowflake Intelligence.
+
+  - name: sv_energy_equipment_reliability
+    description: >-
+      Snowflake Semantic View over the de-duplicated maintenance fact. Read by
+      Cortex Analyst and Snowflake Intelligence.
+
+  # ===========================================================================
+  # energy_time_spine
+  #
+  # Required by the dbt Semantic Layer. Every metric above has a time
+  # dimension (price_date, log_date), and the semantic layer will not serve
+  # those metrics without a model configured as a time spine at DAY
+  # granularity.
+  # ===========================================================================
+  - name: energy_time_spine
+    description: One row per calendar day, 2015-01-01 through 2035-01-01.
+    time_spine:
+      standard_granularity_column: date_day
+    columns:
+      - name: date_day
+        description: The base date column, at DAY granularity.
+        granularity: day

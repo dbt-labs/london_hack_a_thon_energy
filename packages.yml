@@ -1,0 +1,10 @@
+packages:
+  # Helper macros used for a handful of readable tests and a safe divide.
+  - package: dbt-labs/dbt_utils
+    version: [">=1.3.0", "<2.0.0"]
+
+  # Adds the `semantic_view` materialization so a Snowflake Semantic View can
+  # be defined as a dbt model and versioned in git like any other model.
+  # https://hub.getdbt.com/Snowflake-Labs/dbt_semantic_view/latest/
+  - package: Snowflake-Labs/dbt_semantic_view
+    version: [">=1.0.6", "<2.0.0"]
