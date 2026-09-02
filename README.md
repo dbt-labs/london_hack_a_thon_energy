@@ -4,9 +4,24 @@ Commodity price history and equipment reliability for an energy operator.
 Two subject areas, three source tables, and the most interesting data-quality
 problem in the whole lab.
 
-The full step-by-step walkthrough is
-[docs/attendee-guide-energy.md](../../docs/attendee-guide-energy.md). This file
-is the 30-second orientation.
+This file is the 30-second orientation. The full step-by-step attendee
+walkthrough is distributed separately by the workshop facilitators.
+
+## Support and maintenance
+
+This project is provided as-is, without warranties or SLAs. It is workshop
+material, maintained on a best-effort basis by the dbt Labs sales engineering
+team.
+
+Bug reports and questions are welcome as GitHub issues, but there is no
+committed response time. For security reports, see [SECURITY.md](SECURITY.md).
+Nothing here implies contractual support from dbt Labs.
+
+<!-- TODO(luis): commodity_prices.csv is described below as containing real
+     market data (the 2020-04-20 WTI settlement). Confirm its provenance and
+     redistribution terms before this repo goes public, and add an attribution
+     note here. See the note in the review summary. -->
+
 
 ## The business question
 
@@ -19,7 +34,10 @@ subjects into a single semantic object gives an AI agent a join it cannot make.
 
 ## Quickstart
 
-1. Open this folder (`projects/energy`) in dbt Studio.
+You will need your own Snowflake account and a dbt project pointed at this
+repository. No credentials are included here.
+
+1. Clone this repository, or connect it to a dbt project in dbt Studio.
 2. `dbt deps`
 3. `dbt seed`, which loads `commodity_prices`, `fts_records`, `loglynx` (the
    raw feeds a real deployment would land continuously via Openflow instead)
@@ -28,7 +46,8 @@ subjects into a single semantic object gives an AI agent a join it cannot make.
 5. `dbt build`, which is where the seeded bugs live. Fix them with dbt Wizard.
 
 Stuck? There's no schema to fall back to any more — the seed is the same for
-everyone. Re-fork the repo if you think you've broken something structural.
+everyone. Re-clone the repository if you think you've broken something
+structural.
 
 ## What is in here
 
