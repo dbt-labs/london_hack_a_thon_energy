@@ -35,7 +35,7 @@ FACTS (
     maintenance.event_failure_rate AS maintenance.failure_rate
         COMMENT = 'Observed failure rate for the asset, 0 to 1.',
 
-    maintenance.event_cost_per_hour AS maintenance.cost_per_downtime_hour
+    maintenance.event_cost_per_hour AS maintenance.maintenance_cost / NULLIF(maintenance.downtime_hours, 0)
         COMMENT = 'Maintenance cost divided by hours of downtime.',
 
     maintenance.analyst_hours_saved AS maintenance.summarization_hours_saved

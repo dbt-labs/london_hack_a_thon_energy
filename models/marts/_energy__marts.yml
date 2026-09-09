@@ -29,7 +29,7 @@ models:
         dimension:
           type: time
         granularity: day
-      - name: commodity
+      - name: commodity_code
         data_type: varchar
         description: Machine-readable commodity code, for example brent_crude.
 
@@ -232,7 +232,7 @@ models:
         data_tests:
           - accepted_values:
               arguments:
-                values: ['Completed', 'In Progress', 'Scheduled', 'Delayed']
+                values: ['Completed', 'In Progress', 'Scheduled', 'Delayed', 'Cancelled']
 
         dimension:
           type: categorical

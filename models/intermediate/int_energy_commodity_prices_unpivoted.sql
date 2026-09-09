@@ -61,7 +61,7 @@ unpivoted as (
         -- HOL_BUG_ENERGY_01
         price_usd for commodity_code_raw in (
             natural_gas,
-            crude_oil,
+            wti_crude,
             brent_crude,
             low_sulphur_gas_oil,
             uls_diesel,
