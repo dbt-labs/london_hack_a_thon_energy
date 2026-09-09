@@ -20,3 +20,4 @@ venv/
 .DS_Store
 .vscode/
 .idea/
+dbt_internal_packages/
