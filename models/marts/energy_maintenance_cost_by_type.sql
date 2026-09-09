@@ -23,9 +23,6 @@ aggregated as (
     select
         maintenance_type,
 
-        -- HOL_BUG_ENERGY_02
-        maintenance_status,
-
         count(*) as event_count,
         count(distinct equipment_id) as equipment_count,
         count(distinct technician_id) as technician_count,
